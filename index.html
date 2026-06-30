@@ -33,10 +33,7 @@
   Landing camera → pendingFieldWords (merged into Word Ladder field pool
   on openTool('ladder')). Also saves to text vault if ≥50 words.
   Cut-Up camera → text vault only (≥50 words threshold).
-  Word Ladder camera → fieldWords. Re-capture loop: while Field is the active
-  mode the capture controls stay visible (Photograph text when empty; Add more +
-  Clear once populated), so the user can keep adding pages. Fixed 2026-06-30 —
-  the prompt previously hid itself after the first capture, stranding the pool.
+  Word Ladder camera → fieldWords (existing behavior, unchanged).
   All three use Tesseract.js loaded on demand from jsdelivr CDN.
 
   OCR PIPELINE (Phase 1 — 2026-06-21):
@@ -65,7 +62,11 @@
   custom SOURCES and returns to source screen.
 
   HELP OVERLAYS:
-  Three overlays: landing, cutup, ladder. Fixed ? button bottom-right.
+  Three overlays: landing, cutup, ladder. Landing + cutup ? buttons are
+  fixed bottom-right. Word Ladder's ? is DOCKED into the header actions
+  (2026-06-30) — same element/id (helpBtnLadder) and show/hide logic, but
+  carries .help-btn-docked which overrides the fixed positioning so it sits
+  inline at top-right, clear of the content and export area.
   Landing ? visible on landing only; tool ? buttons visible in tool only.
   openHelp/closeHelp in routing script; openCutupHelp/openLadderHelp aliases.
 
@@ -94,6 +95,43 @@
   word is redundant and a candidate for relabelling/de-emphasis. Left as-is
   this session to keep scope tight; flagged for Lee's call.
 
+  WORD LADDER — LAYOUT PASS 2 (2026-06-30):
+  Three ergonomics/clarity moves from device-test feedback:
+  1. CLEAR PAIRS relocated to the TOP of #generationMode (was at the bottom,
+     below the mode panel + Start Building). Shown only after returning from
+     a finished composition (returnedFromCompose) so the "start over" reset
+     is the first thing visible, not buried at the end of the scroll. Still
+     toggled by id; only the DOM position moved.
+  2. HELP "?" docked into the Word Ladder header (see HELP OVERLAYS above).
+  3. EXPORT HEADER: exportTiers() now prepends the EXPORT_HEADER constant
+     (a quiet "created in 23 ladders" credit + divider) above the composed
+     lines, for both the share-sheet and clipboard paths. Edit that one
+     constant to change the wording. Cut-Up's share path is unchanged and
+     could adopt the same header later (Cut-Up is staged off for v1).
+
+  WORD BANK — NAKED LUNCH CULL (2026-06-30):
+  nakedLunchVerbs trimmed 42 -> 24, nakedLunchNouns trimmed 45 -> 23.
+  Removed the clinical/body-horror cluster (suppurating, coagulated,
+  hemorrhaged, metastasized, mucus, pustule, …), the drug/instrument and
+  bureaucratic borderlines (junk, syringe, scalpel, checkpoint, operator,
+  algebra, …), plus centipede, severed, injected. Rationale + full keep/cut
+  list: 23ladders-naked-lunch-audit-2026-06-30.md. shiftTable entries for
+  culled words remain but are now ORPHANED keys — harmless (a key is only
+  reached when its word is in the pool) and verified never to resurrect a
+  culled word under a kept key. Sweep later if desired.
+
+  LIBRARY — VOCAB ADDITIONS (2026-06-30):
+  174 curated words added (read directly from Lee's book photos, not OCR).
+  Folded into EXISTING pools: Pessoa, Marquez, Murakami, Borges. SIX NEW pools
+  created: gibran, eliot, dickens, rumi, moore, myth (Bulfinch+Tolkien+
+  Mabinogion). All six are wired into getWordPool's two Blend assembly blocks
+  (NOT the Murakami-only Library base). 11 exact/spelling duplicates were
+  filtered at inject time (e.g. labyrinth/tiger/compass already in borges).
+  Full scored master list + rationale: 23ladders-library-additions-master-
+  2026-06-30.md. NOTE: new-pool words are scored on the same concrete/familiar/
+  loud axes; once the Blend temperature work lands (see kickoff-blend md), this
+  deeper bench is what gives that dial something rich to range over.
+
   CSS NOTES:
   Landing styles use .landing-* prefix — no conflicts.
   Cut-Up uses .hdr; Word Ladder uses .header — no conflict.
@@ -110,7 +148,6 @@
 -->
 <head>
   <meta charset="UTF-8">
-  <meta name="robots" content="noindex, nofollow">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
@@ -268,6 +305,18 @@
       display: flex;
       align-items: center;
       justify-content: center;
+    }
+
+    /* Docked variant — Word Ladder's ? lives inline in the header instead
+       of floating bottom-right (2026-06-30). Overrides the fixed position. */
+    .help-btn-docked {
+      position: static;
+      bottom: auto;
+      right: auto;
+      width: 26px;
+      height: 26px;
+      font-size: 12px;
+      margin-left: 6px;
     }
     .help-overlay {
       position: fixed;
@@ -1435,7 +1484,8 @@
     <p>Chaos — The full pool, no scoring, no weighting. Pure verb-noun collision. Use it when the other modes feel too considered.</p>
   </div>
 </div>
-<button class="help-btn" id="helpBtnLadder" onclick="openLadderHelp()" style="display:none">?</button>
+<!-- helpBtnLadder moved into the Word Ladder header (.header-actions) and
+     given .help-btn-docked — see header below. (2026-06-30 layout pass) -->
 
 <!-- ═══════════════════════════════════════ -->
 <!--  CUT-UP GENERATOR                       -->
@@ -1612,6 +1662,11 @@
         <button class="header-btn" id="savedCountBtn" style="display:none;" onclick="switchToCompose()">
             <span id="savedCountLabel">0 saved</span>
         </button>
+        <!-- Help "?" docked into the header (2026-06-30). Same id/handler as
+             the former floating button; .help-btn-docked overrides the fixed
+             bottom-right positioning so it sits discreetly top-right. Shown
+             only when Word Ladder is active (existing show/hide logic). -->
+        <button class="help-btn help-btn-docked" id="helpBtnLadder" onclick="openLadderHelp()" style="display:none">?</button>
     </div>
 </div>
 
@@ -1621,6 +1676,14 @@
 <!--  GENERATION MODE                      -->
 <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
 <div id="generationMode" class="mode active">
+
+    <!-- Clear Pairs — relocated to the TOP (2026-06-30). Shown only after
+         returning from a finished composition (returnedFromCompose) so the
+         "start over" reset is immediately visible instead of buried at the
+         bottom of the scroll. Toggled by id; only DOM position changed. -->
+    <div class="btn-row" id="clearRow" style="display:none;">
+        <button class="btn-ghost" style="flex:1;" onclick="clearPairs()">Clear Pairs</button>
+    </div>
 
     <div class="section-strip">
         <span class="section-strip-label section-strip-accent" style="color: var(--color-save);">Generate</span>
@@ -1670,10 +1733,6 @@
             </div>
         </div>
         <input type="file" id="cameraInput" accept="image/*" capture="environment" onchange="handleCameraCapture(event)">
-    </div>
-
-    <div class="btn-row" id="clearRow" style="display:none;">
-        <button class="btn-ghost" style="flex:1;" onclick="clearPairs()">Clear Pairs</button>
     </div>
 
     <!-- Start Building -->
@@ -3173,7 +3232,10 @@ const murakamiVerbs = [
     {word:"turned",concrete:60,familiar:100,loud:40},{word:"noticed",concrete:50,familiar:90,loud:30},
     {word:"passed",concrete:60,familiar:100,loud:30},{word:"felt",concrete:30,familiar:100,loud:40},
     {word:"imagined",concrete:20,familiar:90,loud:30},{word:"remembered",concrete:30,familiar:90,loud:40},
-    {word:"disappeared",concrete:50,familiar:90,loud:50},{word:"listened",concrete:50,familiar:90,loud:30}
+    {word:"disappeared",concrete:50,familiar:90,loud:50},{word:"listened",concrete:50,familiar:90,loud:30},
+    {word:"loomed",concrete:60,familiar:70,loud:50},{word:"glowed",concrete:60,familiar:80,loud:40},
+    {word:"fluttering",concrete:70,familiar:80,loud:40},{word:"whirled",concrete:80,familiar:70,loud:60},
+    {word:"rustling",concrete:70,familiar:80,loud:30}
 ];
 
 const murakamiNouns = [
@@ -3193,7 +3255,9 @@ const murakamiNouns = [
     {word:"stranger",concrete:70,familiar:90,loud:40},{word:"corridor",concrete:90,familiar:80,loud:30},
     {word:"notebook",concrete:90,familiar:80,loud:30},{word:"threshold",concrete:80,familiar:70,loud:30},
     {word:"coffee",concrete:90,familiar:100,loud:30},{word:"night",concrete:60,familiar:100,loud:50},
-    {word:"rain",concrete:80,familiar:100,loud:40},{word:"figure",concrete:70,familiar:90,loud:40}
+    {word:"rain",concrete:80,familiar:100,loud:40},{word:"figure",concrete:70,familiar:90,loud:40},
+    {word:"freighter",concrete:90,familiar:60,loud:40},{word:"reef",concrete:90,familiar:70,loud:40},
+    {word:"luster",concrete:50,familiar:70,loud:40},{word:"well",concrete:80,familiar:90,loud:30}
 ];
 
 const borgesVerbs = [
@@ -3207,7 +3271,15 @@ const borgesVerbs = [
     {word:"wandered",concrete:60,familiar:80,loud:30},{word:"perceived",concrete:40,familiar:70,loud:30},
     {word:"composed",concrete:40,familiar:80,loud:30},{word:"foresaw",concrete:30,familiar:60,loud:40},
     {word:"translated",concrete:40,familiar:70,loud:30},{word:"vanished",concrete:50,familiar:80,loud:50},
-    {word:"approached",concrete:60,familiar:80,loud:40},{word:"constructed",concrete:60,familiar:70,loud:40}
+    {word:"approached",concrete:60,familiar:80,loud:40},{word:"constructed",concrete:60,familiar:70,loud:40},
+    {word:"soothed",concrete:40,familiar:80,loud:30},{word:"blurred",concrete:50,familiar:70,loud:30},
+    {word:"receded",concrete:50,familiar:60,loud:30},{word:"shone",concrete:60,familiar:80,loud:50},
+    {word:"worship",concrete:30,familiar:80,loud:50},{word:"conjure",concrete:40,familiar:60,loud:40},
+    {word:"beguiles",concrete:30,familiar:50,loud:40},{word:"woven",concrete:70,familiar:70,loud:30},
+    {word:"revolve",concrete:50,familiar:70,loud:40},{word:"contrive",concrete:30,familiar:60,loud:40},
+    {word:"tremble",concrete:60,familiar:80,loud:40},{word:"scrawled",concrete:70,familiar:60,loud:40},
+    {word:"unveils",concrete:40,familiar:60,loud:40},{word:"obliterates",concrete:40,familiar:50,loud:50},
+    {word:"glinted",concrete:70,familiar:70,loud:50},{word:"whine",concrete:60,familiar:70,loud:60}
 ];
 
 const borgesNouns = [
@@ -3224,7 +3296,18 @@ const borgesNouns = [
     {word:"ruins",concrete:80,familiar:80,loud:50},{word:"scholar",concrete:70,familiar:70,loud:30},
     {word:"infinity",concrete:10,familiar:70,loud:50},{word:"fire",concrete:90,familiar:100,loud:80},
     {word:"sand",concrete:90,familiar:90,loud:30},{word:"compass",concrete:90,familiar:80,loud:30},
-    {word:"theorem",concrete:50,familiar:60,loud:30}
+    {word:"theorem",concrete:50,familiar:60,loud:30},
+    {word:"mirrors",concrete:80,familiar:90,loud:40},{word:"maze",concrete:60,familiar:70,loud:40},
+    {word:"enigma",concrete:20,familiar:70,loud:40},{word:"abyss",concrete:50,familiar:70,loud:50},
+    {word:"ramparts",concrete:90,familiar:50,loud:40},{word:"vermilion",concrete:70,familiar:40,loud:40},
+    {word:"whirlpool",concrete:80,familiar:60,loud:50},{word:"dagger",concrete:90,familiar:80,loud:50},
+    {word:"centaur",concrete:70,familiar:40,loud:40},{word:"minotaur",concrete:70,familiar:50,loud:50},
+    {word:"tracery",concrete:60,familiar:40,loud:30},{word:"corridors",concrete:80,familiar:80,loud:30},
+    {word:"oblivion",concrete:20,familiar:60,loud:40},{word:"corpse",concrete:80,familiar:70,loud:50},
+    {word:"statues",concrete:90,familiar:80,loud:40},{word:"gauchos",concrete:80,familiar:40,loud:50},
+    {word:"marshes",concrete:80,familiar:60,loud:40},{word:"skein",concrete:70,familiar:40,loud:30},
+    {word:"poppies",concrete:90,familiar:70,loud:40},{word:"archetype",concrete:20,familiar:50,loud:30},
+    {word:"gleam",concrete:50,familiar:70,loud:40}
 ];
 
 const marquezVerbs = [
@@ -3239,7 +3322,9 @@ const marquezVerbs = [
     {word:"scattered",concrete:70,familiar:80,loud:50},{word:"drifted",concrete:50,familiar:80,loud:30},
     {word:"gathered",concrete:70,familiar:90,loud:40},{word:"tasted",concrete:80,familiar:90,loud:30},
     {word:"returned",concrete:50,familiar:90,loud:40},{word:"arranged",concrete:60,familiar:80,loud:30},
-    {word:"offered",concrete:50,familiar:90,loud:40}
+    {word:"offered",concrete:50,familiar:90,loud:40},
+    {word:"petrified",concrete:70,familiar:80,loud:60},{word:"snatched",concrete:80,familiar:90,loud:70},
+    {word:"pirouetting",concrete:70,familiar:50,loud:40},{word:"simmering",concrete:70,familiar:70,loud:40}
 ];
 
 const marquezNouns = [
@@ -3257,7 +3342,11 @@ const marquezNouns = [
     {word:"butterfly",concrete:90,familiar:90,loud:30},{word:"almond",concrete:90,familiar:80,loud:20},
     {word:"cinnamon",concrete:90,familiar:80,loud:30},{word:"river",concrete:90,familiar:100,loud:40},
     {word:"colonel",concrete:80,familiar:70,loud:50},{word:"carnival",concrete:80,familiar:80,loud:70},
-    {word:"orchids",concrete:90,familiar:70,loud:30},{word:"telegram",concrete:80,familiar:70,loud:40}
+    {word:"orchids",concrete:90,familiar:70,loud:30},{word:"telegram",concrete:80,familiar:70,loud:40},
+    {word:"camellia",concrete:90,familiar:60,loud:30},{word:"refuge",concrete:50,familiar:80,loud:40},
+    {word:"turmoil",concrete:30,familiar:80,loud:70},{word:"composure",concrete:30,familiar:70,loud:30},
+    {word:"mesas",concrete:80,familiar:50,loud:40},{word:"plazas",concrete:80,familiar:70,loud:40},
+    {word:"trappings",concrete:70,familiar:60,loud:40}
 ];
 
 const pessoaVerbs = [
@@ -3271,7 +3360,10 @@ const pessoaVerbs = [
     {word:"pretended",concrete:30,familiar:80,loud:30},{word:"listens",concrete:50,familiar:90,loud:20},
     {word:"belongs",concrete:30,familiar:90,loud:30},{word:"wanders",concrete:60,familiar:80,loud:30},
     {word:"imagines",concrete:20,familiar:80,loud:30},{word:"regrets",concrete:20,familiar:80,loud:40},
-    {word:"inhabits",concrete:40,familiar:70,loud:30}
+    {word:"inhabits",concrete:40,familiar:70,loud:30},
+    {word:"pierced",concrete:80,familiar:80,loud:70},{word:"astonished",concrete:40,familiar:80,loud:50},
+    {word:"distilled",concrete:60,familiar:60,loud:40},{word:"glittering",concrete:60,familiar:70,loud:50},
+    {word:"entangled",concrete:60,familiar:70,loud:40},{word:"eludes",concrete:30,familiar:60,loud:40}
 ];
 
 const pessoaNouns = [
@@ -3288,7 +3380,14 @@ const pessoaNouns = [
     {word:"tobacco",concrete:80,familiar:80,loud:30},{word:"stone",concrete:90,familiar:100,loud:40},
     {word:"childhood",concrete:30,familiar:90,loud:30},{word:"longing",concrete:20,familiar:90,loud:40},
     {word:"dusk",concrete:60,familiar:80,loud:20},{word:"wanderer",concrete:70,familiar:70,loud:30},
-    {word:"tavern",concrete:90,familiar:70,loud:40},{word:"sailors",concrete:90,familiar:80,loud:50}
+    {word:"tavern",concrete:90,familiar:70,loud:40},{word:"sailors",concrete:90,familiar:80,loud:50},
+    {word:"yearnings",concrete:30,familiar:70,loud:50},{word:"quayside",concrete:80,familiar:50,loud:40},
+    {word:"idylls",concrete:30,familiar:40,loud:30},{word:"anguish",concrete:30,familiar:70,loud:70},
+    {word:"oar",concrete:90,familiar:70,loud:30},{word:"terraces",concrete:80,familiar:70,loud:30},
+    {word:"argonauts",concrete:60,familiar:40,loud:40},{word:"caravels",concrete:80,familiar:40,loud:40},
+    {word:"vineyards",concrete:80,familiar:70,loud:40},{word:"incense",concrete:80,familiar:60,loud:40},
+    {word:"howling",concrete:50,familiar:70,loud:70},{word:"rasp",concrete:70,familiar:60,loud:60},
+    {word:"hinges",concrete:80,familiar:80,loud:30}
 ];
 
 const sontagVerbs = [
@@ -3324,49 +3423,29 @@ const sontagNouns = [
 ];
 
 const nakedLunchVerbs = [
-    {word:"injected",concrete:90,familiar:70,loud:60},{word:"severed",concrete:90,familiar:70,loud:80},
-    {word:"ruptured",concrete:90,familiar:60,loud:80},{word:"dissolved",concrete:70,familiar:70,loud:40},
-    {word:"penetrated",concrete:90,familiar:80,loud:70},{word:"infected",concrete:80,familiar:80,loud:70},
+    {word:"dissolved",concrete:70,familiar:70,loud:40},{word:"penetrated",concrete:90,familiar:80,loud:70},
     {word:"violated",concrete:70,familiar:70,loud:80},{word:"consumed",concrete:80,familiar:90,loud:60},
-    {word:"secreted",concrete:80,familiar:50,loud:30},{word:"mutated",concrete:60,familiar:70,loud:60},
-    {word:"festering",concrete:90,familiar:60,loud:50},{word:"convulsed",concrete:90,familiar:60,loud:80},
-    {word:"rotting",concrete:90,familiar:80,loud:60},{word:"corroded",concrete:80,familiar:60,loud:50},
+    {word:"mutated",concrete:60,familiar:70,loud:60},{word:"corroded",concrete:80,familiar:60,loud:50},
     {word:"contaminated",concrete:70,familiar:70,loud:60},{word:"paralyzed",concrete:80,familiar:80,loud:60},
-    {word:"liquefied",concrete:90,familiar:50,loud:50},{word:"calcified",concrete:80,familiar:40,loud:40},
-    {word:"suffocating",concrete:90,familiar:80,loud:80},{word:"strangled",concrete:90,familiar:90,loud:90},
-    {word:"bleeding",concrete:90,familiar:90,loud:70},{word:"coagulated",concrete:90,familiar:50,loud:50},
-    {word:"suppurating",concrete:90,familiar:30,loud:60},{word:"stalk",concrete:80,familiar:80,loud:60},
-    {word:"eliminate",concrete:60,familiar:80,loud:70},{word:"projected",concrete:50,familiar:70,loud:50},
-    {word:"probing",concrete:80,familiar:80,loud:50},{word:"trembling",concrete:80,familiar:90,loud:50},
-    {word:"occupied",concrete:60,familiar:90,loud:40},{word:"gibber",concrete:70,familiar:40,loud:70},
+    {word:"stalk",concrete:80,familiar:80,loud:60},{word:"eliminate",concrete:60,familiar:80,loud:70},
+    {word:"projected",concrete:50,familiar:70,loud:50},{word:"probing",concrete:80,familiar:80,loud:50},
+    {word:"trembling",concrete:80,familiar:90,loud:50},{word:"occupied",concrete:60,familiar:90,loud:40},
     {word:"slithered",concrete:80,familiar:70,loud:50},{word:"contracted",concrete:60,familiar:70,loud:50},
     {word:"devoured",concrete:90,familiar:80,loud:80},{word:"leaked",concrete:80,familiar:80,loud:50},
-    {word:"metastasized",concrete:70,familiar:30,loud:60},{word:"drained",concrete:70,familiar:80,loud:50},
-    {word:"quivered",concrete:80,familiar:70,loud:50},{word:"crawled",concrete:80,familiar:90,loud:40},
-    {word:"seized",concrete:70,familiar:80,loud:70},{word:"hemorrhaged",concrete:90,familiar:60,loud:80},
+    {word:"drained",concrete:70,familiar:80,loud:50},{word:"quivered",concrete:80,familiar:70,loud:50},
+    {word:"crawled",concrete:80,familiar:90,loud:40},{word:"seized",concrete:70,familiar:80,loud:70},
     {word:"expelled",concrete:80,familiar:70,loud:70},{word:"muttered",concrete:60,familiar:80,loud:40}
 ];
 
 const nakedLunchNouns = [
     {word:"flesh",concrete:90,familiar:90,loud:60},{word:"tissue",concrete:90,familiar:80,loud:40},
-    {word:"membrane",concrete:90,familiar:60,loud:30},{word:"mucus",concrete:90,familiar:70,loud:50},
-    {word:"syndrome",concrete:40,familiar:70,loud:50},{word:"virus",concrete:60,familiar:80,loud:70},
-    {word:"parasite",concrete:80,familiar:70,loud:70},{word:"larvae",concrete:90,familiar:50,loud:60},
-    {word:"centipede",concrete:90,familiar:70,loud:60},{word:"specimen",concrete:80,familiar:70,loud:40},
-    {word:"checkpoint",concrete:90,familiar:70,loud:50},{word:"terminal",concrete:70,familiar:80,loud:50},
-    {word:"sector",concrete:60,familiar:70,loud:40},{word:"frontier",concrete:70,familiar:70,loud:50},
-    {word:"zone",concrete:70,familiar:80,loud:50},{word:"informer",concrete:80,familiar:70,loud:60},
-    {word:"agent",concrete:70,familiar:80,loud:50},{word:"permit",concrete:80,familiar:80,loud:40},
-    {word:"junk",concrete:80,familiar:90,loud:60},{word:"pusher",concrete:80,familiar:80,loud:60},
-    {word:"withdrawal",concrete:50,familiar:80,loud:70},{word:"syringe",concrete:90,familiar:70,loud:60},
-    {word:"scalpel",concrete:90,familiar:60,loud:50},{word:"pustule",concrete:90,familiar:30,loud:60},
+    {word:"membrane",concrete:90,familiar:60,loud:30},{word:"virus",concrete:60,familiar:80,loud:70},
+    {word:"parasite",concrete:80,familiar:70,loud:70},{word:"terminal",concrete:70,familiar:80,loud:50},
+    {word:"frontier",concrete:70,familiar:70,loud:50},{word:"zone",concrete:70,familiar:80,loud:50},
     {word:"insects",concrete:90,familiar:90,loud:50},{word:"arcades",concrete:90,familiar:70,loud:40},
-    {word:"addicts",concrete:80,familiar:80,loud:70},{word:"victims",concrete:80,familiar:90,loud:70},
-    {word:"costume",concrete:90,familiar:80,loud:40},{word:"libido",concrete:50,familiar:60,loud:60},
-    {word:"confusion",concrete:40,familiar:90,loud:50},{word:"weakness",concrete:50,familiar:90,loud:40},
-    {word:"subjects",concrete:60,familiar:90,loud:50},{word:"servants",concrete:90,familiar:80,loud:40},
-    {word:"operator",concrete:70,familiar:80,loud:50},{word:"routine",concrete:50,familiar:90,loud:30},
-    {word:"algebra",concrete:50,familiar:60,loud:30},{word:"receptor",concrete:70,familiar:50,loud:30},
+    {word:"victims",concrete:80,familiar:90,loud:70},{word:"confusion",concrete:40,familiar:90,loud:50},
+    {word:"weakness",concrete:50,familiar:90,loud:40},{word:"subjects",concrete:60,familiar:90,loud:50},
+    {word:"servants",concrete:90,familiar:80,loud:40},{word:"routine",concrete:50,familiar:90,loud:30},
     {word:"vapor",concrete:70,familiar:80,loud:40},{word:"neon",concrete:80,familiar:90,loud:50},
     {word:"ghost",concrete:60,familiar:90,loud:50},{word:"dust",concrete:90,familiar:100,loud:30},
     {word:"needle",concrete:90,familiar:80,loud:60},{word:"control",concrete:40,familiar:90,loud:60},
@@ -3742,6 +3821,84 @@ let pairCounter = 0;
 // WORD SELECTION
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+// --- New literary pools added 2026-06-30 (Gibran/Eliot/Dickens/Rumi/Moore/Myth). See master list md. ---
+const gibranVerbs = [
+    {word:"embark",concrete:50,familiar:70,loud:40},{word:"crystallize",concrete:60,familiar:60,loud:40},
+    {word:"tarry",concrete:30,familiar:40,loud:30}
+];
+const gibranNouns = [
+    {word:"aloneness",concrete:20,familiar:70,loud:30},{word:"fragments",concrete:60,familiar:80,loud:40},
+    {word:"garment",concrete:80,familiar:70,loud:30},{word:"ether",concrete:30,familiar:40,loud:20},
+    {word:"thirst",concrete:50,familiar:90,loud:50},{word:"mould",concrete:70,familiar:60,loud:30}
+];
+const eliotVerbs = [
+    {word:"grasping",concrete:80,familiar:90,loud:60},{word:"advancing",concrete:70,familiar:80,loud:50},
+    {word:"retreating",concrete:60,familiar:80,loud:40},{word:"curl",concrete:80,familiar:90,loud:30},
+    {word:"lurked",concrete:60,familiar:60,loud:50},{word:"ascended",concrete:50,familiar:70,loud:40},
+    {word:"flung",concrete:80,familiar:80,loud:70},{word:"swam",concrete:80,familiar:80,loud:40},
+    {word:"hushing",concrete:40,familiar:70,loud:30},{word:"withered",concrete:70,familiar:70,loud:40},
+    {word:"enchanted",concrete:40,familiar:70,loud:40},{word:"twisted",concrete:70,familiar:80,loud:50}
+];
+const eliotNouns = [
+    {word:"spectre",concrete:50,familiar:70,loud:50},{word:"gloom",concrete:40,familiar:80,loud:40},
+    {word:"brilliance",concrete:40,familiar:80,loud:60},{word:"stags",concrete:90,familiar:70,loud:50},
+    {word:"throne",concrete:80,familiar:70,loud:50},{word:"candelabra",concrete:90,familiar:50,loud:40},
+    {word:"unguent",concrete:70,familiar:40,loud:40},{word:"dolphin",concrete:90,familiar:80,loud:40},
+    {word:"nightingale",concrete:90,familiar:70,loud:50},{word:"mantel",concrete:80,familiar:60,loud:30},
+    {word:"ivory",concrete:80,familiar:70,loud:40},{word:"banister",concrete:80,familiar:70,loud:30},
+    {word:"gullet",concrete:80,familiar:50,loud:50},{word:"hawthorn",concrete:90,familiar:60,loud:40},
+    {word:"lilac",concrete:90,familiar:70,loud:30},{word:"flute",concrete:90,familiar:80,loud:40}
+];
+const dickensVerbs = [
+    {word:"croaked",concrete:70,familiar:70,loud:60},{word:"pursued",concrete:50,familiar:80,loud:50}
+];
+const dickensNouns = [
+    {word:"tumult",concrete:40,familiar:60,loud:80},{word:"exultation",concrete:30,familiar:60,loud:70},
+    {word:"billows",concrete:70,familiar:60,loud:60},{word:"turnkey",concrete:80,familiar:40,loud:40},
+    {word:"torch",concrete:90,familiar:90,loud:50},{word:"phantom",concrete:50,familiar:70,loud:50},
+    {word:"fortress",concrete:90,familiar:80,loud:50}
+];
+const rumiVerbs = [
+    {word:"adorns",concrete:50,familiar:70,loud:40},{word:"intoxicates",concrete:40,familiar:60,loud:50},
+    {word:"blooming",concrete:70,familiar:80,loud:40}
+];
+const rumiNouns = [
+    {word:"orchard",concrete:90,familiar:80,loud:40},{word:"brook",concrete:90,familiar:80,loud:40},
+    {word:"fragrance",concrete:50,familiar:80,loud:40},{word:"sweetness",concrete:30,familiar:80,loud:40}
+];
+const mooreVerbs = [
+    {word:"waddle",concrete:80,familiar:80,loud:40},{word:"coiled",concrete:80,familiar:70,loud:40},
+    {word:"brim",concrete:60,familiar:70,loud:40},{word:"sprawled",concrete:80,familiar:80,loud:40},
+    {word:"snagged",concrete:80,familiar:70,loud:50},{word:"smelted",concrete:80,familiar:50,loud:50},
+    {word:"sizzling",concrete:80,familiar:80,loud:60},{word:"splintering",concrete:80,familiar:70,loud:60},
+    {word:"sprouted",concrete:80,familiar:80,loud:40},{word:"embroidered",concrete:70,familiar:70,loud:30},
+    {word:"gazed",concrete:50,familiar:90,loud:30}
+];
+const mooreNouns = [
+    {word:"bier",concrete:80,familiar:40,loud:40},{word:"lament",concrete:40,familiar:60,loud:60},
+    {word:"swarm",concrete:80,familiar:80,loud:60},{word:"hives",concrete:80,familiar:70,loud:40},
+    {word:"sockets",concrete:80,familiar:70,loud:40},{word:"reek",concrete:70,familiar:70,loud:60},
+    {word:"brushwood",concrete:90,familiar:60,loud:40},{word:"blaze",concrete:80,familiar:80,loud:80},
+    {word:"coffers",concrete:80,familiar:50,loud:40},{word:"troughs",concrete:80,familiar:60,loud:40},
+    {word:"glint",concrete:70,familiar:70,loud:50},{word:"bronze",concrete:80,familiar:80,loud:40},
+    {word:"rushes",concrete:80,familiar:70,loud:30},{word:"reeds",concrete:90,familiar:80,loud:30},
+    {word:"antler",concrete:90,familiar:70,loud:40},{word:"serpents",concrete:90,familiar:80,loud:60},
+    {word:"calligraphy",concrete:70,familiar:60,loud:30},{word:"whiskers",concrete:90,familiar:80,loud:30}
+];
+const mythVerbs = [
+    {word:"gnawed",concrete:80,familiar:80,loud:50},{word:"tolled",concrete:70,familiar:70,loud:60},
+    {word:"strewed",concrete:70,familiar:70,loud:40},{word:"sprang",concrete:80,familiar:80,loud:60},
+    {word:"dishevelled",concrete:70,familiar:60,loud:40}
+];
+const mythNouns = [
+    {word:"lantern",concrete:90,familiar:90,loud:40},{word:"sundown",concrete:70,familiar:90,loud:30},
+    {word:"thunder",concrete:80,familiar:90,loud:70},{word:"stripling",concrete:70,familiar:40,loud:30},
+    {word:"satchel",concrete:90,familiar:70,loud:30},{word:"pitcher",concrete:90,familiar:90,loud:30},
+    {word:"plumage",concrete:90,familiar:60,loud:40},{word:"knell",concrete:60,familiar:50,loud:60},
+    {word:"harp",concrete:90,familiar:80,loud:40},{word:"masts",concrete:90,familiar:70,loud:40},
+    {word:"coral",concrete:90,familiar:80,loud:40}
+];
+
 function getWordPool() {
     // Base pool is always Murakami
     let verbPool = [...murakamiVerbs];
@@ -3750,8 +3907,8 @@ function getWordPool() {
     // Library mode: Murakami only (already set above)
     // Blend mode: add all literary pools
     if (modes.blend && activeMode !== 'field') {
-        verbPool = [...verbPool, ...borgesVerbs, ...marquezVerbs, ...pessoaVerbs, ...sontagVerbs, ...nakedLunchVerbs];
-        nounPool = [...nounPool, ...borgesNouns, ...marquezNouns, ...pessoaNouns, ...sontagNouns, ...nakedLunchNouns];
+        verbPool = [...verbPool, ...borgesVerbs, ...marquezVerbs, ...pessoaVerbs, ...sontagVerbs, ...nakedLunchVerbs, ...gibranVerbs, ...eliotVerbs, ...dickensVerbs, ...rumiVerbs, ...mooreVerbs, ...mythVerbs];
+        nounPool = [...nounPool, ...borgesNouns, ...marquezNouns, ...pessoaNouns, ...sontagNouns, ...nakedLunchNouns, ...gibranNouns, ...eliotNouns, ...dickensNouns, ...rumiNouns, ...mooreNouns, ...mythNouns];
     }
 
     // Field mode: use personal OCR words only (fall back to library if empty)
@@ -3773,9 +3930,9 @@ function getWordPool() {
             word: w, concrete: 50, familiar: 40, loud: 40
         }));
         verbPool = [...verbPool, ...borgesVerbs, ...marquezVerbs, ...pessoaVerbs,
-                    ...sontagVerbs, ...nakedLunchVerbs, ...toScored(fieldWords.verbs)];
+                    ...sontagVerbs, ...nakedLunchVerbs, ...gibranVerbs, ...eliotVerbs, ...dickensVerbs, ...rumiVerbs, ...mooreVerbs, ...mythVerbs, ...toScored(fieldWords.verbs)];
         nounPool = [...nounPool, ...borgesNouns, ...marquezNouns, ...pessoaNouns,
-                    ...sontagNouns, ...nakedLunchNouns, ...toScored(fieldWords.nouns)];
+                    ...sontagNouns, ...nakedLunchNouns, ...gibranNouns, ...eliotNouns, ...dickensNouns, ...rumiNouns, ...mooreNouns, ...mythNouns, ...toScored(fieldWords.nouns)];
     }
 
     return { verbPool, nounPool };
@@ -4003,21 +4160,14 @@ function weighted(arr) {
 }
 
 function selectMode(mode) {
-    // Field: always activate visually when tapped, and always show the capture
-    // controls while it's the active mode (see the field branch below).
+    // Field: always activate it visually when tapped
+    // If no words yet, show camera prompt but keep it active
     activeMode = mode;
     updateModeChips(mode);
 
     if (mode === 'field') {
-        // Always surface the capture controls while Field is active — so the
-        // user can ADD MORE / CLEAR on every visit, not only the first time
-        // when the pool is empty. The prior `=== 0` test hid the prompt once
-        // any word had been captured, leaving the Field chip able only to
-        // regenerate ("narrow the library") with no way to photograph again.
-        // updateCameraPromptUI() (called inside showCameraPrompt) chooses the
-        // label: "Photograph text" when empty, "Add more" + Clear when populated.
-        showCameraPrompt(true);
-        if (fieldWords.verbs.length > 0 || fieldWords.nouns.length > 0) generate();
+        showCameraPrompt(fieldWords.verbs.length === 0);
+        if (fieldWords.verbs.length > 0) generate();
         return;
     }
 
@@ -4466,6 +4616,11 @@ function moveTierDown(index) {
 // EXPORT
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+// Persistent credit header prepended to every Word Ladder export
+// (2026-06-30). Quiet, lowercase, matches the monastic register. Edit
+// this single constant to change the wording everywhere it appears.
+const EXPORT_HEADER = 'created in 23 ladders\n——————————\n\n';
+
 async function exportTiers() {
     const lines = tiers
         .filter(t => t.length > 0)
@@ -4476,7 +4631,7 @@ async function exportTiers() {
         return;
     }
 
-    const output = lines.join('\n');
+    const output = EXPORT_HEADER + lines.join('\n');
     const btn = document.querySelector('#compositionMode .header-btn[onclick*="exportTiers"]');
 
     if (navigator.share) {
