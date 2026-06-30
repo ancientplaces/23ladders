@@ -2,7 +2,7 @@
 <html lang="en">
 <!--
   23 LADDERS — UNIFIED APP
-  Last updated: 2026-06-21
+  Last updated: 2026-06-30
 
   ARCHITECTURE:
   Single HTML file. Landing screen routes to one of two tools.
@@ -33,7 +33,10 @@
   Landing camera → pendingFieldWords (merged into Word Ladder field pool
   on openTool('ladder')). Also saves to text vault if ≥50 words.
   Cut-Up camera → text vault only (≥50 words threshold).
-  Word Ladder camera → fieldWords (existing behavior, unchanged).
+  Word Ladder camera → fieldWords. Re-capture loop: while Field is the active
+  mode the capture controls stay visible (Photograph text when empty; Add more +
+  Clear once populated), so the user can keep adding pages. Fixed 2026-06-30 —
+  the prompt previously hid itself after the first capture, stranding the pool.
   All three use Tesseract.js loaded on demand from jsdelivr CDN.
 
   OCR PIPELINE (Phase 1 — 2026-06-21):
@@ -74,6 +77,23 @@
   pendingFieldWords in routing script connects landing camera to Word Ladder.
   fieldWords remains top-level in Word Ladder script (accessible from routing).
 
+  WORD LADDER — GENERATE / UNDO LAYOUT (2026-06-30):
+  Action row (Undo + Generate) sits DIRECTLY below the pairs list, ABOVE
+  the mode panel. Reason: on iPhone, after locking pairs the user had to
+  scroll past the whole mode panel to reach Generate, then back up. With
+  the row under the pairs, lock -> Generate is uninterrupted. Tradeoff:
+  the mode chips (Field/Blend/Chaos) now sit below Generate, so switching
+  mode costs a short scroll — acceptable because mode is set rarely and
+  Generate is the high-frequency action (Library is the default mode).
+  "Undo" was formerly labelled "Back" but its handler goBack() reverts the
+  last Generate while keeping locked pairs — it never returns home. The
+  element id stays "backBtn" so JS (updateBackButton) is untouched.
+  NOTE for a future pass: the top .section-strip still prints the word
+  "Generate" as a section header — it LOOKS tappable but is not a control.
+  Now that the real Generate button is adjacent to the pairs, that header
+  word is redundant and a candidate for relabelling/de-emphasis. Left as-is
+  this session to keep scope tight; flagged for Lee's call.
+
   CSS NOTES:
   Landing styles use .landing-* prefix — no conflicts.
   Cut-Up uses .hdr; Word Ladder uses .header — no conflict.
@@ -89,8 +109,8 @@
                      Confirmed: iPhone 17 Pro + iPad (Jun 1, 2026)
 -->
 <head>
-  <meta name="robots" content="noindex, nofollow">
   <meta charset="UTF-8">
+  <meta name="robots" content="noindex, nofollow">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
@@ -1609,6 +1629,16 @@
 
     <div class="pairs-area" id="pairsContainer"></div>
 
+    <!-- Action buttons — placed directly below the pairs so the lock → Generate
+         flow needs no scroll past the mode panel (iPhone reachability fix,
+         2026-06-30). "Undo" (id kept as backBtn for JS compatibility) reverts
+         the last Generate while preserving locked pairs — it is NOT a
+         return-home control; that is the header's HOME button. -->
+    <div class="btn-row">
+        <button class="btn-ghost" id="backBtn" onclick="goBack()" disabled>Undo</button>
+        <button class="btn-action" id="generateBtn" onclick="generate()">Generate</button>
+    </div>
+
     <!-- Mode chips -->
     <div class="mode-panel">
         <span class="mode-panel-label">Mode</span>
@@ -1640,12 +1670,6 @@
             </div>
         </div>
         <input type="file" id="cameraInput" accept="image/*" capture="environment" onchange="handleCameraCapture(event)">
-    </div>
-
-    <!-- Action buttons -->
-    <div class="btn-row">
-        <button class="btn-ghost" id="backBtn" onclick="goBack()" disabled>Back</button>
-        <button class="btn-action" id="generateBtn" onclick="generate()">Generate</button>
     </div>
 
     <div class="btn-row" id="clearRow" style="display:none;">
@@ -3979,14 +4003,21 @@ function weighted(arr) {
 }
 
 function selectMode(mode) {
-    // Field: always activate it visually when tapped
-    // If no words yet, show camera prompt but keep it active
+    // Field: always activate visually when tapped, and always show the capture
+    // controls while it's the active mode (see the field branch below).
     activeMode = mode;
     updateModeChips(mode);
 
     if (mode === 'field') {
-        showCameraPrompt(fieldWords.verbs.length === 0);
-        if (fieldWords.verbs.length > 0) generate();
+        // Always surface the capture controls while Field is active — so the
+        // user can ADD MORE / CLEAR on every visit, not only the first time
+        // when the pool is empty. The prior `=== 0` test hid the prompt once
+        // any word had been captured, leaving the Field chip able only to
+        // regenerate ("narrow the library") with no way to photograph again.
+        // updateCameraPromptUI() (called inside showCameraPrompt) chooses the
+        // label: "Photograph text" when empty, "Add more" + Clear when populated.
+        showCameraPrompt(true);
+        if (fieldWords.verbs.length > 0 || fieldWords.nouns.length > 0) generate();
         return;
     }
 
